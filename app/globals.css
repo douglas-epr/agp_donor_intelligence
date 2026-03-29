@@ -1,0 +1,56 @@
+@import "tailwindcss";
+
+/* AGP Donor Intelligence — Design System Tokens (Tailwind v4 @theme) */
+@theme {
+  /* Brand palette */
+  --color-brand-primary:   #1F3E77;   /* Institutional Blue */
+  --color-brand-secondary: #2F6FED;   /* Insight Blue */
+  --color-brand-bg:        #F5F7FA;   /* Cloud Interface */
+  --color-brand-accent:    #9EDC4B;   /* Momentum Green */
+  --color-brand-text:      #2A2E35;   /* Executive Graphite */
+
+  /* Semantic aliases */
+  --color-surface:  #FFFFFF;
+  --color-muted:    #6B7280;
+  --color-error:    #DC2626;
+  --color-warning:  #D97706;
+  --color-success:  #16A34A;
+
+  /* Shadows */
+  --shadow-card:       0 1px 3px 0 rgba(0,0,0,0.08), 0 1px 2px -1px rgba(0,0,0,0.06);
+  --shadow-card-hover: 0 4px 12px 0 rgba(0,0,0,0.1);
+
+  /* Border radii */
+  --radius-card: 12px;
+
+  /* Typography */
+  --font-sans: var(--font-inter), system-ui, sans-serif;
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply bg-brand-bg text-brand-text;
+  }
+
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+@layer utilities {
+  /* Executive card style */
+  .card-executive {
+    @apply bg-white rounded-card shadow-card border border-gray-100;
+  }
+
+  /* KPI number rendering */
+  .kpi-value {
+    @apply font-bold tracking-tight text-brand-text;
+    font-variant-numeric: tabular-nums;
+  }
+}

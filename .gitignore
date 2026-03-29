@@ -4,7 +4,16 @@ pnpm-lock.yaml
 bun.lock
 deno.lock
 pnpm-workspace.yaml
-package-lock.json
+
+# Next.js
+.next/
+out/
+next-env.d.ts
+*.tsbuildinfo
+
+# Env files — NEVER commit secrets
+.env.local
+.env.*.local
 
 test-output/*
 coverage/
