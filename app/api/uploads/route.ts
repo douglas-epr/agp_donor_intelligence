@@ -1,21 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { parseCsvText } from '@/lib/csv/parser';
 
 /**
  * POST /api/uploads
  *
  * Accepts a multipart/form-data request with a CSV file,
- * parses and validates each row, and returns validation results with a preview.
+ * parses and validates each row, persists to DB, and returns results.
  *
  * RULES.MD Rule 0: user_id is extracted from the authenticated session only.
  * No user_id is accepted from the request body.
+ * Uses createAdminClient() for writes — trusted server operation, bypasses RLS.
  *
  * Body: FormData with `file` field (CSV)
  *
  * Response 201:
  * {
- *   uploadId: string | null,
+ *   uploadId: string,
  *   rowCount: number,
  *   rejectedCount: number,
  *   preview: DonorGiftRow[],
@@ -85,13 +86,70 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // MVP: return results without persisting to DB (mock phase)
-  // When DB is ready: insert into uploads + donor_gifts tables here.
-  console.info(`Upload processed: ${file.name} | valid=${parseResult.validRows.length} rejected=${parseResult.rejectedRows.length} user=${user.id}`);
+  const adminClient = createAdminClient();
+
+  // Create upload record
+  const { data: uploadRecord, error: uploadInsertError } = await adminClient
+    .from('uploads')
+    .insert({
+      user_id: user.id,
+      filename: file.name,
+      row_count: parseResult.validRows.length,
+      rejected_count: parseResult.rejectedRows.length,
+      status: 'processing',
+    })
+    .select('id')
+    .single();
+
+  if (uploadInsertError || !uploadRecord) {
+    console.error('Failed to create upload record:', uploadInsertError);
+    return NextResponse.json(
+      { error: { code: 'DB_ERROR', message: 'Failed to save upload. Please try again.' } },
+      { status: 500 }
+    );
+  }
+
+  const uploadId = uploadRecord.id as string;
+
+  // Bulk-insert donor gifts
+  if (parseResult.validRows.length > 0) {
+    const rows = parseResult.validRows.map((row) => ({
+      upload_id: uploadId,
+      user_id: user.id,
+      donor_id: row.donor_id,
+      donor_name: row.donor_name,
+      segment: row.segment,
+      gift_date: row.gift_date,
+      gift_amount: row.gift_amount,
+      campaign: row.campaign,
+      channel: row.channel,
+      region: row.region,
+    }));
+
+    const { error: giftsError } = await adminClient.from('donor_gifts').insert(rows);
+
+    if (giftsError) {
+      console.error('Failed to insert donor gifts:', giftsError);
+      await adminClient
+        .from('uploads')
+        .update({ status: 'error', error_message: 'Failed to persist donor records.' })
+        .eq('id', uploadId);
+
+      return NextResponse.json(
+        { error: { code: 'DB_ERROR', message: 'Failed to save donor records. Please try again.' } },
+        { status: 500 }
+      );
+    }
+  }
+
+  // Mark upload complete
+  await adminClient.from('uploads').update({ status: 'complete' }).eq('id', uploadId);
+
+  console.info(`Upload complete: ${file.name} | valid=${parseResult.validRows.length} rejected=${parseResult.rejectedRows.length} user=${user.id} uploadId=${uploadId}`);
 
   return NextResponse.json(
     {
-      uploadId: null, // will be a real UUID when DB is connected
+      uploadId,
       filename: file.name,
       rowCount: parseResult.validRows.length,
       rejectedCount: parseResult.rejectedRows.length,

@@ -1,9 +1,9 @@
 import { NextRequest } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@/lib/supabase/server';
-import { mockDonors } from '@/lib/data/mockDonors';
 import { buildDonorContext, buildSystemPrompt } from '@/lib/ai/queryBuilder';
 import { env } from '@/lib/env';
+import type { DonorGift } from '@/lib/data/mockDonors';
 
 /**
  * POST /api/ai/query
@@ -16,7 +16,8 @@ import { env } from '@/lib/env';
  * Response: text/event-stream (Server-Sent Events)
  *
  * RULES.MD Rule 0: user_id from session only. Anthropic API key server-side only.
- * AI context: never passes raw donor names or PII — only aggregated summaries.
+ * PII: donor_name is intentionally excluded from the SELECT — never sent to Claude.
+ * Defense-in-depth: .eq('user_id', user.id) in addition to RLS (RULES.MD Rule 10).
  */
 export async function POST(request: NextRequest) {
   // Authenticate
@@ -58,8 +59,33 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Build context — MVP uses mock data; swap for real Supabase query when DB connected
-  const context = buildDonorContext(mockDonors);
+  // Fetch donor data — donor_name intentionally omitted to avoid sending PII to Claude
+  const { data: gifts, error: dbError } = await supabase
+    .from('donor_gifts')
+    .select('donor_id, segment, gift_date, gift_amount, campaign, channel, region')
+    .eq('user_id', user.id)
+    .order('gift_date', { ascending: true });
+
+  if (dbError) {
+    console.error('POST /api/ai/query db error:', dbError);
+    return new Response(
+      JSON.stringify({ error: { code: 'DB_ERROR', message: 'Failed to load donor data.' } }),
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
+
+  const donorGifts: DonorGift[] = (gifts ?? []).map((row) => ({
+    donor_id: row.donor_id,
+    donor_name: '', // PII — never sent to Claude
+    segment: row.segment ?? '',
+    gift_date: row.gift_date,
+    gift_amount: Number(row.gift_amount),
+    campaign: row.campaign ?? '',
+    channel: row.channel ?? '',
+    region: row.region ?? '',
+  }));
+
+  const context = buildDonorContext(donorGifts);
   const systemPrompt = buildSystemPrompt(context);
 
   // Stream response from Claude

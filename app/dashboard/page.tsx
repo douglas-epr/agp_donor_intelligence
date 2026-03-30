@@ -1,9 +1,12 @@
+import Link from 'next/link';
 import { KpiCard } from '@/components/features/dashboard/KpiCard';
 import { GiftsOverTimeChart } from '@/components/features/dashboard/GiftsOverTimeChart';
 import { DonorSegmentChart } from '@/components/features/dashboard/DonorSegmentChart';
 import { aggregateDashboardData } from '@/lib/data/aggregations';
-import { mockDonors } from '@/lib/data/mockDonors';
+import { createClient } from '@/lib/supabase/server';
+import { ROUTES } from '@/lib/constants';
 import { formatCurrency, formatNumber, formatPercent } from '@/lib/utils';
+import type { DonorGift } from '@/lib/data/mockDonors';
 
 export const metadata = {
   title: 'Dashboard | AGP Donor Intelligence',
@@ -18,11 +21,61 @@ const CAMPAIGN_COLORS = [
 ];
 
 /**
- * Executive Summary Dashboard — server-rendered from mock data.
- * Layout: header + toggle, 4 KPI cards, 2-col charts, campaign progress bars.
+ * Executive Summary Dashboard — server-rendered from live Supabase data.
+ * Shows an upload CTA if the user has no donor data yet.
  */
 export default async function DashboardPage() {
-  const data = aggregateDashboardData(mockDonors);
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { data: rows } = await supabase
+    .from('donor_gifts')
+    .select('donor_id, donor_name, segment, gift_date, gift_amount, campaign, channel, region')
+    .eq('user_id', user!.id)
+    .order('gift_date', { ascending: true });
+
+  const donorGifts: DonorGift[] = (rows ?? []).map((row) => ({
+    donor_id: row.donor_id,
+    donor_name: row.donor_name ?? '',
+    segment: row.segment ?? '',
+    gift_date: row.gift_date,
+    gift_amount: Number(row.gift_amount),
+    campaign: row.campaign ?? '',
+    channel: row.channel ?? '',
+    region: row.region ?? '',
+  }));
+
+  // Empty state — guide the user to upload their first CSV
+  if (donorGifts.length === 0) {
+    return (
+      <div className="flex min-h-[60vh] flex-col items-center justify-center space-y-5 p-6">
+        <div className="rounded-2xl border border-dashed border-gray-200 bg-white px-10 py-12 text-center shadow-card">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-brand-bg">
+            <svg className="h-7 w-7 text-brand-secondary" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
+            </svg>
+          </div>
+          <h2 className="text-[18px] font-bold text-brand-text">No donor data yet</h2>
+          <p className="mt-2 max-w-sm text-[13px] text-gray-500">
+            Upload your first CSV file to start seeing insights, KPIs, and AI-powered analysis.
+          </p>
+          <Link
+            href={ROUTES.UPLOAD}
+            className="mt-6 inline-flex items-center gap-2 rounded-lg bg-brand-primary px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#162d58]"
+          >
+            Upload Donor Data
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+            </svg>
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  const data = aggregateDashboardData(donorGifts);
   const { kpis, giftsOverTime, campaignPerformance, segmentBreakdown } = data;
 
   // Derive sparklines from monthly gift totals (last 8 months)
@@ -32,7 +85,6 @@ export default async function DashboardPage() {
   const avgGiftSparkline = recentMonths.map((m) =>
     m.count > 0 ? m.total / m.count : 0
   );
-  // Retention sparkline — month-over-month approximation
   const retentionSparkline = [0.58, 0.61, 0.63, 0.60, 0.64, 0.65, 0.63, kpis.retentionRate];
 
   const maxCampaignTotal = Math.max(...campaignPerformance.map((c) => c.totalRaised));
@@ -44,7 +96,7 @@ export default async function DashboardPage() {
         <div>
           <h1 className="text-[22px] font-bold text-brand-text">Executive Summary</h1>
           <p className="mt-0.5 text-[12px] text-gray-400">
-            Institutional Intelligence&nbsp;&bull;&nbsp;Updated 2 minutes ago
+            Institutional Intelligence&nbsp;&bull;&nbsp;{donorGifts.length} records loaded
           </p>
         </div>
 

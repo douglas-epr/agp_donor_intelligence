@@ -8,6 +8,7 @@ export const APP_DESCRIPTION =
 export const ROUTES = {
   HOME: '/',
   LOGIN: '/login',
+  SIGNUP: '/signup',
   DASHBOARD: '/dashboard',
   UPLOAD: '/dashboard/upload',
   QUERY: '/dashboard/query',
