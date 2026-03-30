@@ -148,20 +148,20 @@ export default async function DashboardPage() {
         <DonorSegmentChart data={segmentBreakdown} />
       </div>
 
-      {/* Campaign Performance — progress bars */}
+      {/* Campaign Performance — 2-column grid */}
       <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-card">
-        <div className="mb-4 flex items-start justify-between">
+        <div className="mb-4 flex items-center justify-between">
           <div>
             <h2 className="text-[14px] font-bold text-brand-text">Campaign Performance</h2>
-            <p className="mt-0.5 text-[11px] text-gray-400">Year-to-date by fundraising initiative</p>
+            <p className="mt-0.5 text-[11px] text-gray-400">Revenue by primary initiative</p>
           </div>
-          <span className="rounded-full bg-brand-bg px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-brand-primary">
-            {campaignPerformance.length} campaigns
-          </span>
+          <button className="text-[12px] font-semibold text-brand-secondary hover:underline">
+            View Full Report →
+          </button>
         </div>
 
-        <div className="space-y-4">
-          {campaignPerformance.map((c, i) => {
+        <div className="grid grid-cols-1 gap-x-8 gap-y-5 sm:grid-cols-2">
+          {campaignPerformance.slice(0, 4).map((c, i) => {
             const pct = maxCampaignTotal > 0
               ? (c.totalRaised / maxCampaignTotal) * 100
               : 0;
@@ -169,12 +169,9 @@ export default async function DashboardPage() {
               <div key={c.campaign}>
                 <div className="mb-1.5 flex items-center justify-between">
                   <span className="text-[12px] font-medium text-brand-text">{c.campaign}</span>
-                  <div className="flex items-center gap-3">
-                    <span className="text-[11px] text-gray-400">{c.giftCount} gifts</span>
-                    <span className="text-[12px] font-semibold text-brand-text">
-                      {formatCurrency(c.totalRaised)}
-                    </span>
-                  </div>
+                  <span className="text-[12px] font-semibold text-brand-text">
+                    {formatCurrency(c.totalRaised)}
+                  </span>
                 </div>
                 <div className="h-2 w-full overflow-hidden rounded-full bg-gray-100">
                   <div

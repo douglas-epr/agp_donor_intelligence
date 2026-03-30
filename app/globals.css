@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+/* Explicit source scanning paths for Tailwind v4 */
+@source "../app";
+@source "../components";
+@source "../lib";
+
 /* AGP Donor Intelligence — Design System Tokens (Tailwind v4 @theme) */
 @theme {
   /* Brand palette */
